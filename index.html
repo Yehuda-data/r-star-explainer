@@ -163,6 +163,7 @@ button, .seg { touch-action: manipulation; }
 noscript { display: block; }
 .nojs { margin: 0; padding: 14px 16px; border: 1px solid var(--ccs); border-radius: 6px; background: var(--paper); font-size: 15.5px; line-height: 1.5; max-width: 66ch; }
 .nojs b { color: var(--ccs); }
+body.locked { position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100%; overflow: hidden; }
 
 /* expanded view: the player fills the screen, turned sideways on a portrait phone */
 .player.imax {
@@ -1689,7 +1690,7 @@ noscript { display: block; }
     b.className = 'chap';
     b.type = 'button';
     b.innerHTML = '<span class="n">' + (i + 1) + '</span><span>' + s.title + '</span>';
-    b.addEventListener('click', () => gotoScene(i));
+    b.addEventListener('click', () => { goBig(); gotoScene(i); });
     li.appendChild(b);
     chaps.appendChild(li);
     return b;
@@ -1724,7 +1725,7 @@ noscript { display: block; }
   }
 
   $('#bPlay').addEventListener('click', togglePlay);
-  $('#bigPlay').addEventListener('click', () => { if (st.ended) { start(0); } else if (!st.started) start(0); else resume(); });
+  $('#bigPlay').addEventListener('click', () => { goBig(); if (st.ended) { start(0); } else if (!st.started) start(0); else resume(); });
   $('#bPrev').addEventListener('click', () => step(-1));
   $('#bNext').addEventListener('click', () => step(1));
   $('#bNarr').addEventListener('click', () => { st.narr = !st.narr; audio.muted = !st.narr; updateUI(); });
@@ -1747,7 +1748,7 @@ noscript { display: block; }
 
   // narrow screens: equations move under the stage and the svg drops the empty top band
   const stage = $('#stage'), slot = $('#eqSlot'), player = $('.player'), bFull = $('#bFull');
-  let narrow = null;
+  let narrow = null, parkedScroll = 0;
   // the rotated overlay is sized from JS: dynamic viewport units are unreliable inside mobile browser chrome
   function sizeImax() {
     const de = document.documentElement;
@@ -1763,6 +1764,9 @@ noscript { display: block; }
     // expanded on a phone: height is the binding constraint, so use the short sheet there too
     const cramped = player.classList.contains('imax') && (innerWidth < 900 || innerHeight < 560);
     const n = w < 640 || cramped;
+    if (!st.started && !st.ended) {
+      $('#bigPlayLabel').textContent = innerWidth <= 700 && innerHeight > innerWidth ? 'Play full screen' : 'Play the explainer';
+    }
     if (n === narrow) return;
     narrow = n;
     stage.classList.toggle('narrow', n);
@@ -1782,12 +1786,20 @@ noscript { display: block; }
   layout();
 
   function setFull(on) {
+    if (on === player.classList.contains('imax')) return;
+    if (on) parkedScroll = window.pageYOffset || 0;
     player.classList.toggle('imax', on);
+    document.body.classList.toggle('locked', on);
     document.documentElement.style.overflow = on ? 'hidden' : '';
     bFull.setAttribute('aria-pressed', String(on));
     bFull.textContent = on ? 'Close' : 'Expand';
+    if (!on) window.scrollTo(0, parkedScroll);
     layout();
     requestAnimationFrame(layout);
+  }
+  // a 16:9 stage is unreadable across a portrait phone, so playing there opens the sideways player
+  function goBig() {
+    if (innerWidth <= 700 && innerHeight > innerWidth) setFull(true);
   }
   bFull.addEventListener('click', () => setFull(!player.classList.contains('imax')));
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && player.classList.contains('imax')) setFull(false); });
